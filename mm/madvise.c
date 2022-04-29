@@ -452,12 +452,12 @@ regular_page:
 			if (split_huge_page(page)) {
 				unlock_page(page);
 				put_page(page);
-				pte_offset_map_lock(mm, pmd, addr, &ptl);
+				orig_pte = pte_offset_map_lock(mm, pmd, addr, &ptl);
 				break;
 			}
 			unlock_page(page);
 			put_page(page);
-			pte = pte_offset_map_lock(mm, pmd, addr, &ptl);
+			orig_pte = pte = pte_offset_map_lock(mm, pmd, addr, &ptl);
 			pte--;
 			addr -= PAGE_SIZE;
 			continue;
@@ -511,9 +511,18 @@ regular_page:
 	return 0;
 }
 
-static const struct mm_walk_ops cold_walk_ops = {
-	.pmd_entry = madvise_cold_or_pageout_pte_range,
-};
+static void madvise_cold_or_pageout_walk(struct mm_struct *mm,
+			unsigned long addr, unsigned long end,
+			struct madvise_walk_private *private)
+{
+	struct mm_walk cold_walk = {
+		.pmd_entry = madvise_cold_or_pageout_pte_range,
+		.mm = mm,
+		.private = private,
+	};
+
+	walk_page_range(addr, end, &cold_walk);
+}
 
 static void madvise_cold_page_range(struct mmu_gather *tlb,
 			     struct vm_area_struct *vma,
@@ -525,7 +534,7 @@ static void madvise_cold_page_range(struct mmu_gather *tlb,
 	};
 
 	tlb_start_vma(tlb, vma);
-	walk_page_range(vma->vm_mm, addr, end, &cold_walk_ops, &walk_private);
+	madvise_cold_or_pageout_walk(vma->vm_mm, addr, end, &walk_private);
 	tlb_end_vma(tlb, vma);
 }
 
@@ -558,7 +567,7 @@ static void madvise_pageout_page_range(struct mmu_gather *tlb,
 	};
 
 	tlb_start_vma(tlb, vma);
-	walk_page_range(vma->vm_mm, addr, end, &cold_walk_ops, &walk_private);
+	madvise_cold_or_pageout_walk(vma->vm_mm, addr, end, &walk_private);
 	tlb_end_vma(tlb, vma);
 }
 
@@ -659,12 +668,12 @@ static int madvise_free_pte_range(pmd_t *pmd, unsigned long addr,
 			if (split_huge_page(page)) {
 				unlock_page(page);
 				put_page(page);
-				pte_offset_map_lock(mm, pmd, addr, &ptl);
+				orig_pte = pte_offset_map_lock(mm, pmd, addr, &ptl);
 				goto out;
 			}
 			unlock_page(page);
 			put_page(page);
-			pte = pte_offset_map_lock(mm, pmd, addr, &ptl);
+			orig_pte = pte = pte_offset_map_lock(mm, pmd, addr, &ptl);
 			pte--;
 			addr -= PAGE_SIZE;
 			continue;
