@@ -947,6 +947,9 @@ int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
 	struct dsi_backlight_config *bl_slaver = &panel->bl_slaver_config;
 	struct dsi_panel_mi_cfg *mi_cfg = &panel->mi_cfg;
 
+	(void)bl_dc_min;
+
+
 	if (panel->host_config.ext_bridge_mode)
 		return 0;
 
