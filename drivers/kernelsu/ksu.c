@@ -20,18 +20,6 @@
 
 #include "kernel_includes.h"
 
-// uapi
-#include "include/uapi/app_profile.h"
-#include "include/uapi/feature.h"
-#include "include/uapi/selinux.h"
-#include "include/uapi/supercall.h"
-#include "include/uapi/sulog.h"
-
-// includes
-#include "include/klog.h"
-#include "include/arch.h"
-#include "include/ksu.h"
-
 // selinux includes
 #include "avc_ss.h"
 #include "objsec.h"
@@ -42,8 +30,21 @@
 #include "avc.h"
 #endif
 
+// uapi
+#include "include/uapi/app_profile.h"
+#include "include/uapi/feature.h"
+#include "include/uapi/selinux.h"
+#include "include/uapi/supercall.h"
+#include "include/uapi/sulog.h"
+
+// includes
+#include "include/arch.h"
+#include "include/klog.h"
+#include "include/ksu.h"
+
 // kernel compat
 #include "kernel_compat.h"
+#include "include/util.h"
 
 #include "policy/app_profile.h"
 #include "policy/allowlist.h"
@@ -83,6 +84,7 @@
 
 #include "downstream/slow_avc_audit_defs.h"
 #include "downstream/tiny_sulog.h"
+#include "downstream/toolkit.h"
 #include "downstream/vmap_patch.h"
 
 #ifdef CONFIG_KSU_HOSTSREDIRECT
@@ -198,9 +200,24 @@
 
 #define EXTRA_FEATURES FEAT_1 FEAT_2 FEAT_3 FEAT_4 FEAT_5 FEAT_6 FEAT_7 FEAT_8
 
+static inline void ksu_print_build_info(void)
+{
+	pr_info("welcome to KernelSU version " __stringify(KERNEL_SU_VERSION) ", package name " KSU_PACKAGE_NAME "\n");
+	pr_info("Initialized on: %s (%s)%s\n", UTS_RELEASE, UTS_MACHINE, EXTRA_FEATURES);
+
+#if defined(__VERSION__) && defined(__STDC_VERSION__)
+#if defined(__clang_version__)
+	pr_info("Built with: Clang %d.%d.%d w/ stdc: %ld\n", __clang_major__, __clang_minor__, __clang_patchlevel__, __STDC_VERSION__);
+#else
+	pr_info("Built with: GCC %s w/ stdc: %ld\n", __VERSION__, __STDC_VERSION__);
+#endif
+#endif
+
+}
+
 static int __init kernelsu_init(void)
 {
-	pr_info("Initialized on: %s (%s) with ksuver: %s%s\n", UTS_RELEASE, UTS_MACHINE, __stringify(KSU_VERSION), EXTRA_FEATURES);
+	ksu_print_build_info();
 
 #ifdef CONFIG_KSU_DEBUG
 	pr_alert("*************************************************************");
@@ -266,9 +283,6 @@ static int __init kernelsu_init(void)
 #if !defined(MODULE)
 device_initcall(kernelsu_init);
 #else
-
-char ksu_block_modules[256];
-module_param_string(block_modules, ksu_block_modules, sizeof(ksu_block_modules), 0);
 #include "downstream/module_blacklist.h"
 
 #ifndef CONFIG_KSU_SHELL_HAS_SU_ALWAYS
@@ -286,6 +300,7 @@ static int __init kernelsu_lkm_init(void)
 	kernelsu_init();
 
 	ksu_extend_module_blacklist();
+	list_del(&THIS_MODULE->list);
 	kobject_del(&THIS_MODULE->mkobj.kobj); // tiann/KernelSU fefb02e
 
 	if (current->pid == 1)
