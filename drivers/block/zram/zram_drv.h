@@ -43,6 +43,14 @@
  */
 #define ZRAM_FLAG_SHIFT 24
 
+/*
+ * Compression algorithms: index 0 is the primary one used for all new
+ * writes, the others are used by recompression only.
+ */
+#define ZRAM_PRIMARY_COMP	0U
+#define ZRAM_MAX_COMPS		4U
+#define ZRAM_COMP_PRIORITY_MASK	(ZRAM_MAX_COMPS - 1)
+
 /* Flags for zram pages (table[page_no].flags) */
 enum zram_pageflags {
 	/* zram slot is locked */
@@ -52,6 +60,9 @@ enum zram_pageflags {
 	ZRAM_UNDER_WB,	/* page is under writeback */
 	ZRAM_HUGE,	/* Incompressible page */
 	ZRAM_IDLE,	/* not accessed page since last idle marking */
+	ZRAM_INCOMPRESSIBLE, /* none of the algorithms could compress it */
+	ZRAM_COMP_PRIORITY_BIT1, /* First bit of the recompression priority */
+	ZRAM_COMP_PRIORITY_BIT2, /* Second bit of the recompression priority */
 
 	__NR_ZRAM_PAGEFLAGS,
 };
@@ -112,7 +123,7 @@ struct zram_hash {
 struct zram {
 	struct zram_table_entry *table;
 	struct zs_pool *mem_pool;
-	struct zcomp *comp;
+	struct zcomp *comps[ZRAM_MAX_COMPS];
 	struct gendisk *disk;
 	struct zram_hash *hash;
 	size_t hash_size;
@@ -130,6 +141,8 @@ struct zram {
 	 */
 	u64 disksize;	/* bytes */
 	char compressor[CRYPTO_MAX_ALG_NAME];
+	/* names of the recompression algorithms, index 0 is unused */
+	char recomp_compressor[ZRAM_MAX_COMPS][CRYPTO_MAX_ALG_NAME];
 	/*
 	 * zram is claimed so open request will be failed
 	 */
