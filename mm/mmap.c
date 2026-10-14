@@ -3115,11 +3115,19 @@ void exit_mmap(struct mm_struct *mm)
 		}
 	}
 
+	/*
+	 * Hold mmap_lock for read while unmapping so that process_mrelease()
+	 * (which reaps under the read lock) cannot walk a vma list that is
+	 * being torn down.
+	 */
+	mmap_read_lock(mm);
 	arch_exit_mmap(mm);
 
 	vma = mm->mmap;
-	if (!vma)	/* Can happen if dup_mmap() received an OOM */
+	if (!vma) {	/* Can happen if dup_mmap() received an OOM */
+		mmap_read_unlock(mm);
 		return;
+	}
 
 	lru_add_drain();
 	flush_cache_mm(mm);
@@ -3127,6 +3135,16 @@ void exit_mmap(struct mm_struct *mm)
 	/* update_hiwater_rss(mm) here? but nobody should be looking */
 	/* Use -1 here to ensure all VMAs in the mm are unmapped */
 	unmap_vmas(&tlb, vma, 0, -1);
+	mmap_read_unlock(mm);
+
+	/*
+	 * Set MMF_OOM_SKIP to hide this mm from the reapers, then wait for
+	 * any reaper still holding the read lock before freeing page tables.
+	 */
+	set_bit(MMF_OOM_SKIP, &mm->flags);
+	mmap_write_lock(mm);
+	mmap_write_unlock(mm);
+
 	free_pgtables(&tlb, vma, FIRST_USER_ADDRESS, USER_PGTABLES_CEILING);
 	tlb_finish_mmu(&tlb, 0, -1);
 
