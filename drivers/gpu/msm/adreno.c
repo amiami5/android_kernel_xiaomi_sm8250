@@ -2734,6 +2734,27 @@ static int adreno_prop_u32(struct kgsl_device *device,
 	return copy_prop(param, &val, sizeof(val));
 }
 
+static int adreno_prop_gpu_model(struct kgsl_device *device,
+		struct kgsl_device_getproperty *param)
+{
+	struct kgsl_gpu_model model = { 0 };
+
+	device->ftbl->gpu_model(device, model.gpu_model,
+			sizeof(model.gpu_model));
+
+	return copy_prop(param, &model, sizeof(model));
+}
+
+static int adreno_prop_vk_device_id(struct kgsl_device *device,
+		struct kgsl_device_getproperty *param)
+{
+	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
+	/* Vulkan の deviceID は chipid のパッチ番号を 1 に固定した値 */
+	u32 vk_device_id = (adreno_dev->chipid & 0xffffff00) | 0x1;
+
+	return copy_prop(param, &vk_device_id, sizeof(vk_device_id));
+}
+
 static const struct {
 	int type;
 	int (*func)(struct kgsl_device *device,
@@ -2753,6 +2774,8 @@ static const struct {
 	{ KGSL_PROP_DEVICE_BITNESS, adreno_prop_u32 },
 	{ KGSL_PROP_SPEED_BIN, adreno_prop_u32 },
 	{ KGSL_PROP_GAMING_BIN, adreno_prop_gaming_bin },
+	{ KGSL_PROP_GPU_MODEL, adreno_prop_gpu_model },
+	{ KGSL_PROP_VK_DEVICE_ID, adreno_prop_vk_device_id },
 };
 
 static int adreno_getproperty(struct kgsl_device *device,

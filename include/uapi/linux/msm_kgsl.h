@@ -340,6 +340,13 @@ enum kgsl_timestamp_type {
 #define KGSL_PROP_GAMING_BIN		0x26
 #define KGSL_PROP_QUERY_CAPABILITIES	0x27
 #define KGSL_PROP_CONTEXT_PROPERTY	0x28
+#define KGSL_PROP_GPU_MODEL		0x29
+#define KGSL_PROP_VK_DEVICE_ID		0x2a
+
+/* KGSL_PROP_GPU_MODEL: GPU モデル名 (例: Adreno650v3) */
+struct kgsl_gpu_model {
+	char gpu_model[32];
+};
 
 /*
  * kgsl_capabilties_properties returns a list of supported properties.
