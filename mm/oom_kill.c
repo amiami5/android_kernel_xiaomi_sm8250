@@ -45,6 +45,8 @@
 #include <linux/show_mem_notifier.h>
 #include <linux/psi.h>
 #include <linux/cred.h>
+#include <linux/syscalls.h>
+#include <linux/pid.h>
 
 #include <asm/tlb.h>
 #include "internal.h"
@@ -1424,3 +1426,83 @@ void check_panic_on_foreground_kill(struct task_struct *p)
 		panic("Attempt to kill foreground task: %s", p->comm);
 	}
 }
+
+#ifdef CONFIG_MMU
+/*
+ * process_mrelease - release the address space of a dying process.
+ * @pidfd: pidfd of the target process
+ * @flags: must be 0
+ *
+ * Reap the memory of a process that is already about to exit (SIGKILL
+ * pending or exiting), without waiting for it to be scheduled. This lets
+ * a userspace low-memory killer free the memory right after killing.
+ */
+SYSCALL_DEFINE2(process_mrelease, int, pidfd, unsigned int, flags)
+{
+	struct mm_struct *mm = NULL;
+	struct task_struct *task;
+	struct task_struct *p;
+	unsigned int f_flags;
+	bool reap = false;
+	struct pid *pid;
+	long ret = 0;
+
+	if (flags)
+		return -EINVAL;
+
+	pid = pidfd_get_pid(pidfd, &f_flags);
+	if (IS_ERR(pid))
+		return PTR_ERR(pid);
+
+	task = get_pid_task(pid, PIDTYPE_PID);
+	if (!task) {
+		ret = -ESRCH;
+		goto put_pid;
+	}
+
+	/*
+	 * Make sure to choose a thread which still has a reference to mm
+	 * during the group exit
+	 */
+	p = find_lock_task_mm(task);
+	if (!p) {
+		ret = -ESRCH;
+		goto put_task;
+	}
+
+	mm = p->mm;
+	mmgrab(mm);
+
+	if (task_will_free_mem(p))
+		reap = true;
+	else {
+		/* Error only if the work has not been done already */
+		if (!test_bit(MMF_OOM_SKIP, &mm->flags))
+			ret = -EINVAL;
+	}
+	task_unlock(p);
+
+	if (!reap)
+		goto drop_mm;
+
+	if (mmap_read_lock_killable(mm)) {
+		ret = -EINTR;
+		goto drop_mm;
+	}
+	/*
+	 * Check MMF_OOM_SKIP again under mmap_lock protection to ensure the
+	 * mm is not already reaped.
+	 */
+	if (!test_bit(MMF_OOM_SKIP, &mm->flags) && !__oom_reap_task_mm(mm))
+		ret = -EAGAIN;
+	mmap_read_unlock(mm);
+
+drop_mm:
+	mmdrop(mm);
+put_task:
+	put_task_struct(task);
+put_pid:
+	put_pid(pid);
+	return ret;
+}
+#endif /* CONFIG_MMU */
