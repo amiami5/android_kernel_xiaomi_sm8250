@@ -403,3 +403,4 @@
 436	i386	close_range		sys_close_range
 440	i386	process_madvise		sys_process_madvise
 441	i386	epoll_pwait2		sys_epoll_pwait2		__ia32_sys_epoll_pwait2
+448	i386	process_mrelease	sys_process_mrelease

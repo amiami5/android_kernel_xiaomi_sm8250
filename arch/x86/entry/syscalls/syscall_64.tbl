@@ -344,6 +344,7 @@
 436	common	close_range		sys_close_range
 440	common	process_madvise		sys_process_madvise
 441	common	epoll_pwait2		sys_epoll_pwait2
+448	common	process_mrelease		sys_process_mrelease
 
 #
 # x32-specific system call numbers start at 512 to avoid cache impact
