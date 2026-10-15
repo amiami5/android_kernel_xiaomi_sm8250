@@ -2022,10 +2022,17 @@ static int zram_recompress(struct zram *zram, u32 index, struct page *page,
 		return 0;
 	}
 
-	/* The slow path of an allocation failure is not worth the effort */
+	/*
+	 * We are holding the slot lock and the per-CPU compression stream
+	 * (preemption disabled), so the allocation must not sleep. The slow
+	 * path of an allocation failure is not worth the effort.
+	 */
 	entry_new = zram_entry_alloc(zram, comp_len_new,
-				     GFP_NOIO | __GFP_HIGHMEM |
-				     __GFP_MOVABLE | __GFP_CMA);
+				     __GFP_KSWAPD_RECLAIM |
+				     __GFP_NOWARN |
+				     __GFP_HIGHMEM |
+				     __GFP_MOVABLE |
+				     __GFP_CMA);
 	if (!entry_new) {
 		zcomp_stream_put(comp);
 		return -ENOMEM;
