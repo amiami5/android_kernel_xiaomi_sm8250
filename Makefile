@@ -1280,8 +1280,13 @@ prepare1: prepare2 $(version_h) $(autoksyms_h) include/generated/utsrelease.h
 
 archprepare: archheaders archscripts prepare1 scripts_basic
 
+# drivers/kernelsu includes generated/compile.h, which init/ would otherwise
+# create in parallel with drivers/.
 prepare0: archprepare gcc-plugins
 	$(Q)$(MAKE) $(build)=.
+ifdef CONFIG_KSU
+	$(Q)$(MAKE) $(build)=init include/generated/compile.h
+endif
 
 # All the preparing..
 prepare: prepare0 prepare-objtool
