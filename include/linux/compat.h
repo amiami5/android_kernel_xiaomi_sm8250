@@ -574,6 +574,11 @@ asmlinkage long compat_sys_epoll_pwait2(int epfd,
 			const struct __kernel_timespec __user *timeout,
 			const compat_sigset_t __user *sigmask,
 			compat_size_t sigsetsize);
+asmlinkage long compat_sys_process_madvise(compat_int_t pidfd,
+					   const struct compat_iovec __user *vec,
+					   compat_ulong_t vlen,
+					   compat_int_t behavior,
+					   compat_uint_t flags);
 
 /* fs/fcntl.c */
 asmlinkage long compat_sys_fcntl(unsigned int fd, unsigned int cmd,
