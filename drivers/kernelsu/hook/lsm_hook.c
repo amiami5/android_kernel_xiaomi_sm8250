@@ -183,6 +183,7 @@ static struct security_hook_list ksu_hooks[] = {
 #ifndef CONFIG_KSU_SUSFS
     LSM_HOOK_INIT(task_fix_setuid, ksu_task_fix_setuid),
 #endif
+    LSM_HOOK_INIT(file_permission, ksu_mount_hide_file_permission),
 };
 
 void __init ksu_lsm_hook_init(void)

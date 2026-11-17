@@ -73,6 +73,9 @@
 #include <linux/vmalloc.h>
 #include <linux/tty.h>
 #include <linux/kref.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+#include <linux/static_call.h>
+#endif
 #include "arch.h"
 #ifdef CONFIG_KSU_SUSFS
 #include <linux/susfs.h>

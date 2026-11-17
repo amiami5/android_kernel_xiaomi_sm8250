@@ -1,4 +1,5 @@
 obj-$(CONFIG_KSU) := ksu.o
+ksu-y := ksu_main.o
 
 ccflags-y += -I$(srctree)/security/selinux -I$(srctree)/security/selinux/include
 ccflags-y += -I$(objtree)/security/selinux -include $(srctree)/include/uapi/asm-generic/errno.h
@@ -19,14 +20,48 @@ endif
 
 MDIR    := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
-REPO_NAME   := SukiSU-Ultra
+# ===== preinit runner =====
+KSU_UAPI_INC := $(objtree)/usr/include
+ifneq ($(wildcard $(KSU_UAPI_INC)/linux/unistd.h),)
+ksu-y += preinit/preinit.o preinit/blob.o
+
+KSU_RUNNER_CFLAGS := $(CLANG_FLAGS) -std=gnu11 -Os -Wall \
+	-nostdinc -isystem $(shell $(CC) -print-file-name=include) \
+	-I$(KSU_KERNEL_DIR)/preinit/runner/nolibc -I$(KSU_UAPI_INC) \
+	-I$(KSU_KERNEL_DIR)/include \
+	-ffreestanding -fno-stack-protector -fno-pic -fno-pie \
+	-fno-asynchronous-unwind-tables -fno-unwind-tables \
+	-ffunction-sections -fdata-sections
+
+quiet_cmd_ksu_runner = RUNNER  $@
+      cmd_ksu_runner = $(CC) $(KSU_RUNNER_CFLAGS) -c -o $@.o $< && \
+		$(LD) -static -nostdlib -e _start --gc-sections -s -o $@ $@.o && \
+		rm -f $@.o
+
+$(obj)/preinit/runner.elf: $(KSU_KERNEL_DIR)/preinit/runner/runner.c \
+		$(wildcard $(KSU_KERNEL_DIR)/preinit/runner/nolibc/*.h \
+			   $(KSU_KERNEL_DIR)/preinit/runner/nolibc/sys/*.h \
+			   $(KSU_KERNEL_DIR)/include/uapi/*.h) FORCE
+	$(call if_changed,ksu_runner)
+
+targets += preinit/runner.elf
+
+$(obj)/preinit/blob.o: $(obj)/preinit/runner.elf
+asflags-y += -DKSU_PREINIT_RUNNER_BIN=\"$(abspath $(obj)/preinit/runner.elf)\"
+
+else
+$(warning -- KernelSU: $(KSU_UAPI_INC) not found, preinit disabled)
+ccflags-y += -DKSU_NO_PREINIT
+endif
+# ===== end preinit runner =====
+
+REPO_NAME   := SukiSU-Nova
 
 # Fixed values: the upstream Makefile derives these from the GitHub API
 # (curl) and git at build time, which makes the build depend on the network
-# and on the surrounding git repository. The numbers are what upstream's
-# builtin branch reports for the imported commit (6c284e95, v4.2.1).
-KSU_VERSION      := 40996
-KSU_VERSION_FULL := v4.2.1-6c284e95@builtin
+# and on the surrounding git repository.
+KSU_VERSION      := 30000
+KSU_VERSION_FULL := v3.0.0-4bec532d@builtin
 $(info -- $(REPO_NAME) version: $(KSU_VERSION) [$(KSU_VERSION_FULL)])
 
 ccflags-y += -DKSU_VERSION=$(KSU_VERSION)
@@ -117,10 +152,19 @@ $(info -- $(REPO_NAME)/compat: modern static_key_interface found)
 ccflags-y += -DKSU_HAS_MODERN_STATIC_KEY_INTERFACE
 endif
 
-ifdef KSU_MANAGER_PACKAGE
-ccflags-y += -DKSU_MANAGER_PACKAGE=\"$(KSU_MANAGER_PACKAGE)\"
-$(info -- KernelSU Manager package name: $(KSU_MANAGER_PACKAGE))
+# Vendor backports may change these fields independently of LINUX_VERSION_CODE.
+# Inspect the actual target source header, not the host kernel or KMI label.
+ksu_netlink_cfg := $(shell sed -n '/struct netlink_kernel_cfg {/,/^};/p' $(srctree)/include/linux/netlink.h)
+ifneq ($(findstring cb_mutex,$(ksu_netlink_cfg)),)
+ccflags-y += -DKSU_NETLINK_CFG_HAS_CB_MUTEX=1
 endif
+ifneq ($(findstring compare,$(ksu_netlink_cfg)),)
+ccflags-y += -DKSU_NETLINK_CFG_HAS_COMPARE=1
+endif
+
+KSU_PACKAGE_NAME ?= com.sukisu.nova
+
+ccflags-y += -DKSU_PACKAGE_NAME=\"$(KSU_PACKAGE_NAME)\"
 
 ## For susfs stuff ##
 ifeq ($(shell test -e $(srctree)/fs/susfs.c; echo $$?),0)
@@ -134,5 +178,6 @@ endif
 
 ccflags-y += -Wno-strict-prototypes -Wno-int-conversion -Wno-gcc-compat -Wno-missing-prototypes
 ccflags-y += -Wno-declaration-after-statement -Wno-unused-function
+
 
 # Keep a new line here!! Because someone may append config
