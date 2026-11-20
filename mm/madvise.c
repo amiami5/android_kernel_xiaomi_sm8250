@@ -1317,6 +1317,9 @@ SYSCALL_DEFINE5(process_madvise, int, pidfd, const struct iovec __user *, vec,
 	struct iov_iter iter;
 	ssize_t ret;
 
+	if (vlen > UIO_MAXIOV)
+		return -EINVAL;
+
 	ret = import_iovec(READ, vec, vlen, ARRAY_SIZE(iovstack), &iov, &iter);
 	if (ret < 0)
 		return ret;
