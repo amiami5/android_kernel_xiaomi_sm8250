@@ -2063,14 +2063,14 @@ static ssize_t recompress_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t len)
 {
 	struct zram *zram = dev_to_zram(dev);
-	unsigned long nr_pages = zram->disksize >> PAGE_SHIFT;
+	unsigned long nr_pages;
 	u32 prio = ZRAM_PRIMARY_COMP + 1, prio_max = ZRAM_MAX_COMPS;
 	unsigned long max_pages = ULONG_MAX, nr_done = 0;
 	u32 mode = 0, threshold = 0;
 	char *args, *param, *val, *algo = NULL, *orig;
 	struct page *page;
 	ssize_t ret = 0;
-	int index;
+	unsigned long index;
 
 	orig = args = kstrndup(buf, len, GFP_KERNEL);
 	if (!args)
@@ -2129,6 +2129,7 @@ static ssize_t recompress_store(struct device *dev,
 		ret = -EINVAL;
 		goto out_unlock;
 	}
+	nr_pages = zram->disksize >> PAGE_SHIFT;
 
 	/* Dedup entries can be shared by several slots, don't touch them */
 	if (zram_dedup_enabled(zram)) {
