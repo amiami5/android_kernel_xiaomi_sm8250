@@ -1219,6 +1219,7 @@ int switch_pen_input_device(void) {
 	uint8_t buf[8] = {0};
 	int32_t ret = 0;
 	int enable = 0;
+	static int enable_last_status = -1;
 
 	NVT_LOG("++\n");
 	if (!bTouchIsAwake || !ts) {
@@ -1242,8 +1243,20 @@ int switch_pen_input_device(void) {
 	buf[1] = 0x7B;
 	buf[2] = !!enable;
 	ret = CTP_SPI_WRITE(ts->client, buf, 3);
-	if (ret < 0)
+	if (ret < 0) {
 		NVT_ERR("set pen %s failed!\n", enable ? "DISABLE" : "ENABLE");
+		goto nvt_set_pen_enable_out;
+	}
+
+	if (enable_last_status == enable) {
+		NVT_LOG("enable_last_status is %d, enable is %d, skip kobj change\n", enable_last_status, enable);
+		goto nvt_set_pen_enable_out;
+	}
+	enable_last_status = enable;
+
+#ifdef CONFIG_TOUCHSCREEN_NEW_PEN_CONNECT_STRATEGY
+	update_pen_connect_strategy_value(!!enable);
+#endif //CONFIG_TOUCHSCREEN_NEW_PEN_CONNECT_STRATEGY
 
 nvt_set_pen_enable_out:
 	mutex_unlock(&ts->pen_switch_lock);
